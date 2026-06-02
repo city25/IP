@@ -1,23 +1,61 @@
 name: MC Tunnel Server
+
 on: workflow_dispatch
+
 jobs:
   tunnel:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    
     permissions:
       contents: write
+    
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          IP=$(curl -s ifconfig.me)
-          echo "$IP" > TUNNEL_IP.txt
+      
+      - name: Get public IP
+        id: ip
+        run: |
+          IP=$(curl -s --max-time 10 ifconfig.me || curl -s --max-time 10 ipinfo.io/ip || echo "FAILED")
+          if [ "$IP" = "FAILED" ]; then
+            echo "获取IP失败"
+            exit 1
+          fi
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+          echo "公网IP: $IP"
+          
+      - name: Update TUNNEL_IP.txt
+        run: |
+          cat > TUNNEL_IP.txt << EOF
+          ${{ steps.ip.outputs.ip }}
+          
+          更新时间: $(date '+%Y-%m-%d %H:%M:%S') 北京时间
+          有效时段: 每天 10:00-13:00
+          连接地址: ${{ steps.ip.outputs.ip }}:25565
+          SSH密码: mcp_reborn_123
+          EOF
+          
+      - name: Commit and push IP
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add TUNNEL_IP.txt
-          git commit -m "IP: $IP" || true
-          git push || true
-          sudo apt-get update && sudo apt-get install -y openssh-server
+          git commit -m "更新IP: ${{ steps.ip.outputs.ip }}" || true
+          git push https://${GITHUB_TOKEN}@github.com/City25/IP.git || true
+          
+      - name: Setup SSH server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
+          sudo mkdir -p /var/run/sshd
           echo 'root:mcp_reborn_123' | sudo chpasswd
           sudo sed -i 's/#GatewayPorts no/GatewayPorts yes/' /etc/ssh/sshd_config
           sudo service ssh restart
+          echo "SSH就绪，IP: ${{ steps.ip.outputs.ip }}"
+          
+      - name: Keep alive
+        run: |
+          echo "隧道运行中..."
           sleep 10800
