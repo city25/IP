@@ -30,7 +30,7 @@ jobs:
           ${{ steps.ip.outputs.ip }}
           
           更新时间: $(date '+%Y-%m-%d %H:%M:%S') 北京时间
-          有效时段: 每天 10:00-13:00
+          有效时段: 手动测试
           连接地址: ${{ steps.ip.outputs.ip }}:25565
           SSH密码: mcp_reborn_123
           EOF
